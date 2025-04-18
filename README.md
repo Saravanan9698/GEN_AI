@@ -1,5 +1,3 @@
-# GEN_AI
-
 # 💬 AskDocs AI
 
 > *From documents to decisions — powered by AI, secured locally.*
