@@ -24,7 +24,7 @@
 ### 📦 Prerequisites
 
 - Python 3.9+
-- Download the LLaMA 2 model from [HERE!](https://huggingface.co/gokulgowtham01/AskDocs_GEN-AI/tree/main)  
+- Download the LLaMA 2 model from [HERE!](https://huggingface.co/Saravanan2003/llama_model_2/tree/main)  
 
 ### 📁 Folder Structure  
   
