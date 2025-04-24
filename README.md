@@ -1,10 +1,10 @@
-# 💬 AskDocs AI
+# 💬 ChatBot AI
 
 > *From documents to decisions — powered by AI, secured locally.*
 
-## 🔍 What is AskDocs AI?
+## 🔍 What is ChatBot AI?
 
-**AskDocs AI** is a early stage startup comprising a powerful and private document question-answering app powered by **LLaMA 2** and **LangChain**. Upload your PDF, DOCX, or TXT files, and ask intelligent questions. All data is processed locally to maintain maximum privacy.
+**ChatBot AI** is a early stage startup comprising a powerful and private document question-answering app powered by **LLaMA 2** and **LangChain**. Upload your PDF, DOCX, or TXT files, and ask intelligent questions. All data is processed locally to maintain maximum privacy.
 
 ---
 
