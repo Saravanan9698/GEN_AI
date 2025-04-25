@@ -16,7 +16,7 @@ from langchain.prompts import PromptTemplate
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from rouge_score import rouge_scorer
 import torch
-import time  # Importing time for response tracking
+import numpy as np
 
 # --- Initial downloads ---
 nltk.download('punkt', quiet=True)
@@ -27,7 +27,25 @@ for key in ['llm', 'vectorstore', 'documents_processed', 'ready_to_ask']:
     if key not in st.session_state:
         st.session_state[key] = None if key == 'llm' else False
 
-st.set_page_config(page_title="💬 AskDocs AI", layout="wide")
+st.set_page_config(page_title="💬 ChatBot AI", layout="wide")
+
+# --- Background image ---
+def img_to_base64(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+image_path = "D:/Projects/GEN-AI/Images/ChatGPT Image.png"
+if os.path.exists(image_path):
+    img_base64 = img_to_base64(image_path)
+    st.markdown(f"""
+        <style>
+        .stApp {{
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.5)), url('data:image/jpeg;base64,{img_base64}');
+            background-size: cover;
+            background-position: center;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
 
 # --- File Extraction ---
 def extract_text(file):
@@ -68,14 +86,7 @@ def load_llm():
     return CTransformers(
         model=model_path,
         model_type="llama",
-        config={
-            "max_new_tokens": 100,  # Reduced token generation limit
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "repetition_penalty": 1.1,
-            "threads": 8,  # Multi-threading for faster inference
-            "batch_size": 8  # Increase batch size for better throughput
-        }
+        config={"max_new_tokens": 256, "temperature": 0.1}
     )
 
 def get_qa_prompt_template():
@@ -101,60 +112,39 @@ def log_evaluation(q, a, t, m):
         json.dump({"timestamp": str(datetime.now()), "question": q, "answer": a, "truth": t, "metrics": m}, f)
         f.write("\n")
 
-# --- Aggregating Evaluation Stats ---
 def get_evaluation_stats():
-    try:
-        with open("evaluation_log.json", "r", encoding="utf-8") as f:
-            logs = [json.loads(line) for line in f.readlines()]
-        
-        if not logs:
-            return None
-
-        # Aggregate metrics
-        bleu_scores = []
-        rouge1_scores = []
-        rougeL_scores = []
-
-        for log in logs:
-            metrics = log['metrics']
-            bleu_scores.append(metrics['BLEU'])
-            rouge1_scores.append(metrics['ROUGE-1'])
-            rougeL_scores.append(metrics['ROUGE-L'])
-
-        return {
-            "average_bleu": round(sum(bleu_scores) / len(bleu_scores), 4),
-            "average_rouge1": round(sum(rouge1_scores) / len(rouge1_scores), 4),
-            "average_rougeL": round(sum(rougeL_scores) / len(rougeL_scores), 4),
-            "total_evaluations": len(logs)
-        }
-    except Exception as e:
-        st.warning(f"Error in aggregating evaluation stats: {e}")
+    if not os.path.exists("evaluation_log.json"):
         return None
+    with open("evaluation_log.json", "r", encoding="utf-8") as f:
+        logs = [json.loads(line) for line in f.readlines()]
+    if not logs:
+        return None
+    avg = lambda key: round(sum([log['metrics'][key] for log in logs]) / len(logs), 4)
+    return {
+        "Average BLEU": avg("BLEU"),
+        "Average ROUGE-1": avg("ROUGE-1"),
+        "Average ROUGE-L": avg("ROUGE-L"),
+        "Total Evaluations": len(logs)
+    }
 
-# --- Optimization Suggestions ---
 def generate_optimization_suggestions(stats):
-    suggestions = []
-
-    # BLEU score improvement
-    if stats['average_bleu'] < 0.4:
-        suggestions.append("Consider fine-tuning the model on a domain-specific corpus to improve response relevance.")
-    if stats['average_rouge1'] < 0.5:
-        suggestions.append("Increase retrieval depth (k=4) to gather more context for better answers.")
-
-    # Performance-related
-    if stats['average_rougeL'] < 0.5:
-        suggestions.append("Reduce chunk size for more granular context (currently 400 tokens) or overlap (80 tokens).")
-
-    return suggestions
+    tips = []
+    if stats["Average BLEU"] < 0.4:
+        tips.append("Consider fine-tuning the LLM on domain-specific QA datasets.")
+    if stats["Average ROUGE-1"] < 0.5:
+        tips.append("Split documents into smaller, context-rich chunks.")
+    if stats["Average ROUGE-L"] < 0.5:
+        tips.append("Try using a more powerful embedding model.")
+    return tips if tips else ["Current configuration is performing well."]
 
 # --- App layout ---
 st.title("AskDocs AI")
-st.subheader("*From documents to decisions — powered by AI, secured locally.*")
+st.subheader("From documents to decisions — powered by AI, secured locally.")
 
 # --- Sidebar ---
 with st.sidebar:
-    st.header("*Upload your Document!*")
-    uploaded_files = st.file_uploader("*Upload PDF, DOCX, or TXT files*", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+    st.header("Upload your Document!")
+    uploaded_files = st.file_uploader("Upload PDF, DOCX, or TXT files", type=["pdf", "docx", "txt"], accept_multiple_files=True)
 
     if uploaded_files and st.button("Start The Fun!"):
         with st.spinner("Processing documents..."):
@@ -189,7 +179,7 @@ if st.session_state['documents_processed'] and st.session_state['vectorstore']:
             st.session_state.llm = load_llm()
 
         if st.session_state.llm:
-            retriever = st.session_state.vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 2})
+            retriever = st.session_state.vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 2, "lambda_mult": 0.5})
             qa_chain = RetrievalQA.from_chain_type(
                 llm=st.session_state.llm,
                 retriever=retriever,
@@ -197,19 +187,13 @@ if st.session_state['documents_processed'] and st.session_state['vectorstore']:
                 chain_type_kwargs={"prompt": get_qa_prompt_template()}
             )
 
-            # Track response time
-            start_time = time.time()
             with st.spinner("Thinking... 🤔"):
                 result = qa_chain.invoke({"query": question})
                 answer = result.get("result", result)
-                end_time = time.time()
-
-            response_time = end_time - start_time
-            st.session_state['ready_to_ask'] = True
+                st.session_state['ready_to_ask'] = True
 
             st.markdown("### 🤖 Answer:")
             st.success(answer)
-            st.write(f"⏱ Response Time: {response_time:.2f} seconds")  # Log response time
 
             if st.checkbox("Enable Evaluation Mode"):
                 ground_truth = st.text_area("Enter the Ground Truth Answer")
@@ -242,4 +226,4 @@ with st.sidebar:
         ### About:
         This app uses a locally hosted LLaMA 2 model via CTransformers with FAISS for retrieval.
         It evaluates responses using BLEU and ROUGE metrics.
-    """)
+    """)
