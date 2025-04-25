@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2025-04-21 14:57:39",
+    "question": "Cognitive Abilities:",
+    "prediction": "as a data science professional with a strong passion for machine learning and ai, i have extensive experience in developing and deploying predictive models that drive business outcomes. my expertise spans various industries, including healthcare, finance, and e-commerce, where i have leveraged my technical skills to build intelligent systems that improve decision-making processes. my educational background includes a b.sc. in physics from st. joseph's college, tiruchirappalli, and proficiency in programming languages such as python, sql, and machine learning libraries like scikit-learn, xgboost, random forest, logistic regression, decision trees, tensorflow, keras, cnn, rnn, resnet, vgg16, yolov5, image preprocessing, and nlp. in my previous roles, i have successfully delivered data-driven solutions that showcase my ability to work on complex projects with ease. for instance, in one of my projects, i developed a keras-based neural network in streamlit to predict mental health outcomes from survey data with an accuracy of 88%. in another project, i built and deployed a regression model",
+    "ground_truth": "Octopuses are highly intelligent-the smartest invertebrates.",
+    "metrics": {
+      "bleu": 0,
+      "bleu_1": 0,
+      "bleu_2": 0,
+      "rouge-1": 0,
+      "rouge-2": 0,
+      "rouge-l": 0,
+      "embedding_similarity": 0
+    }
+  }
+]

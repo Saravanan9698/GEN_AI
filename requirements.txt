@@ -1,0 +1,10 @@
+streamlit
+nltk
+numpy
+scikit-learn
+sentence-transformers
+ctransformers
+langchain
+PyMuPDF
+docx2txt
+rouge-score

@@ -1,0 +1,245 @@
+import os
+import fitz
+import base64
+import docx2txt
+import streamlit as st
+import nltk
+import json
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.llms import CTransformers
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from rouge_score import rouge_scorer
+import torch
+import time  # Importing time for response tracking
+
+# --- Initial downloads ---
+nltk.download('punkt', quiet=True)
+nltk.download('wordnet', quiet=True)
+
+# --- Session State ---
+for key in ['llm', 'vectorstore', 'documents_processed', 'ready_to_ask']:
+    if key not in st.session_state:
+        st.session_state[key] = None if key == 'llm' else False
+
+st.set_page_config(page_title="💬 AskDocs AI", layout="wide")
+
+# --- File Extraction ---
+def extract_text(file):
+    ext = os.path.splitext(file.name)[1].lower()
+    try:
+        if ext == '.pdf':
+            return "".join([p.get_text() for p in fitz.open(stream=file.read(), filetype="pdf")])
+        elif ext == '.docx':
+            return docx2txt.process(file)
+        elif ext == '.txt':
+            return file.getvalue().decode('utf-8')
+        else:
+            st.error(f"Unsupported file type: {ext}")
+    except Exception as e:
+        st.warning(f"Error processing {file.name}: {e}")
+        return ""
+
+def process_documents(files):
+    with ThreadPoolExecutor() as executor:
+        texts = list(executor.map(extract_text, files))
+    return "\n\n".join([t for t in texts if t])
+
+# --- Embedding ---
+@st.cache_resource
+def get_embeddings(device):
+    return HuggingFaceEmbeddings(
+        model_name="D:/Projects/GEN-AI/sentence_transformers/all-MiniLM-L6-v2",
+        model_kwargs={"device": device}
+    )
+
+# --- Load LLM ---
+@st.cache_resource
+def load_llm():
+    model_path = "D:/Projects/GEN-AI/Model/llama-2-7b-chat.Q4_K_M.gguf"
+    if not os.path.exists(model_path):
+        st.error(f"Model file not found at {model_path}.")
+        return None
+    return CTransformers(
+        model=model_path,
+        model_type="llama",
+        config={
+            "max_new_tokens": 100,  # Reduced token generation limit
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "repetition_penalty": 1.1,
+            "threads": 8,  # Multi-threading for faster inference
+            "batch_size": 8  # Increase batch size for better throughput
+        }
+    )
+
+def get_qa_prompt_template():
+    return PromptTemplate(
+        template="You are an assistant answering questions based on document content.\nContext: {context}\nQuestion: {question}\nAnswer:",
+        input_variables=["context", "question"]
+    )
+
+# --- Evaluation ---
+def calculate_metrics(pred, truth):
+    smoother = SmoothingFunction().method1
+    bleu = sentence_bleu([truth.split()], pred.split(), smoothing_function=smoother)
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
+    rouge = scorer.score(truth, pred)
+    return {
+        "BLEU": round(bleu, 4),
+        "ROUGE-1": round(rouge['rouge1'].fmeasure, 4),
+        "ROUGE-L": round(rouge['rougeL'].fmeasure, 4)
+    }
+
+def log_evaluation(q, a, t, m):
+    with open("evaluation_log.json", "a", encoding="utf-8") as f:
+        json.dump({"timestamp": str(datetime.now()), "question": q, "answer": a, "truth": t, "metrics": m}, f)
+        f.write("\n")
+
+# --- Aggregating Evaluation Stats ---
+def get_evaluation_stats():
+    try:
+        with open("evaluation_log.json", "r", encoding="utf-8") as f:
+            logs = [json.loads(line) for line in f.readlines()]
+        
+        if not logs:
+            return None
+
+        # Aggregate metrics
+        bleu_scores = []
+        rouge1_scores = []
+        rougeL_scores = []
+
+        for log in logs:
+            metrics = log['metrics']
+            bleu_scores.append(metrics['BLEU'])
+            rouge1_scores.append(metrics['ROUGE-1'])
+            rougeL_scores.append(metrics['ROUGE-L'])
+
+        return {
+            "average_bleu": round(sum(bleu_scores) / len(bleu_scores), 4),
+            "average_rouge1": round(sum(rouge1_scores) / len(rouge1_scores), 4),
+            "average_rougeL": round(sum(rougeL_scores) / len(rougeL_scores), 4),
+            "total_evaluations": len(logs)
+        }
+    except Exception as e:
+        st.warning(f"Error in aggregating evaluation stats: {e}")
+        return None
+
+# --- Optimization Suggestions ---
+def generate_optimization_suggestions(stats):
+    suggestions = []
+
+    # BLEU score improvement
+    if stats['average_bleu'] < 0.4:
+        suggestions.append("Consider fine-tuning the model on a domain-specific corpus to improve response relevance.")
+    if stats['average_rouge1'] < 0.5:
+        suggestions.append("Increase retrieval depth (k=4) to gather more context for better answers.")
+
+    # Performance-related
+    if stats['average_rougeL'] < 0.5:
+        suggestions.append("Reduce chunk size for more granular context (currently 400 tokens) or overlap (80 tokens).")
+
+    return suggestions
+
+# --- App layout ---
+st.title("AskDocs AI")
+st.subheader("*From documents to decisions — powered by AI, secured locally.*")
+
+# --- Sidebar ---
+with st.sidebar:
+    st.header("*Upload your Document!*")
+    uploaded_files = st.file_uploader("*Upload PDF, DOCX, or TXT files*", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+
+    if uploaded_files and st.button("Start The Fun!"):
+        with st.spinner("Processing documents..."):
+            all_text = process_documents(uploaded_files)
+            if all_text:
+                splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=80)
+                chunks = splitter.split_text(all_text)
+                st.info(f"Processed {len(chunks)} chunks from {len(uploaded_files)} files.")
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                embeddings = get_embeddings(device)
+                vectordb = FAISS.from_texts(chunks, embedding=embeddings)
+                vectordb.save_local("faiss_index")
+                st.session_state['vectorstore'] = vectordb
+                st.session_state['documents_processed'] = True
+                st.success("Documents processed and vector DB created.")
+
+# --- Load FAISS if exists ---
+if not st.session_state['documents_processed'] and os.path.exists("faiss_index"):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    embeddings = get_embeddings(device)
+    vectordb = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    st.session_state['vectorstore'] = vectordb
+    st.session_state['documents_processed'] = True
+
+# --- QA Section ---
+if st.session_state['documents_processed'] and st.session_state['vectorstore']:
+    st.subheader("Ask a Question Based on the Documents 📄💡")
+    question = st.text_input("Enter your question:")
+
+    if question:
+        if st.session_state.llm is None:
+            st.session_state.llm = load_llm()
+
+        if st.session_state.llm:
+            retriever = st.session_state.vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 2})
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=st.session_state.llm,
+                retriever=retriever,
+                chain_type="stuff",
+                chain_type_kwargs={"prompt": get_qa_prompt_template()}
+            )
+
+            # Track response time
+            start_time = time.time()
+            with st.spinner("Thinking... 🤔"):
+                result = qa_chain.invoke({"query": question})
+                answer = result.get("result", result)
+                end_time = time.time()
+
+            response_time = end_time - start_time
+            st.session_state['ready_to_ask'] = True
+
+            st.markdown("### 🤖 Answer:")
+            st.success(answer)
+            st.write(f"⏱ Response Time: {response_time:.2f} seconds")  # Log response time
+
+            if st.checkbox("Enable Evaluation Mode"):
+                ground_truth = st.text_area("Enter the Ground Truth Answer")
+                if ground_truth and st.button("Evaluate"):
+                    metrics = calculate_metrics(answer, ground_truth)
+                    log_evaluation(question, answer, ground_truth, metrics)
+                    st.subheader("📊 Evaluation Metrics")
+                    st.json(metrics)
+
+                    stats = get_evaluation_stats()
+                    if stats:
+                        st.subheader("📈 Aggregated Stats")
+                        st.json(stats)
+
+                        suggestions = generate_optimization_suggestions(stats)
+                        st.subheader("🛠 Optimization Suggestions")
+                        for tip in suggestions:
+                            st.markdown(f"- {tip}")
+
+# --- Footer Info ---
+with st.sidebar:
+    st.markdown("---")
+    st.markdown("""
+        ### How to use:
+        1. Upload PDF, DOCX, or TXT documents
+        2. Click 'Start The Fun!'
+        3. Ask questions about your documents
+        4. (Optional) Enable evaluation mode for answer quality
+
+        ### About:
+        This app uses a locally hosted LLaMA 2 model via CTransformers with FAISS for retrieval.
+        It evaluates responses using BLEU and ROUGE metrics.
+    """)
