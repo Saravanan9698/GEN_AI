@@ -24,7 +24,7 @@
 ### 📦 Prerequisites
 
 - Python 3.9+
-- Download the LLaMA 2 model from [HERE!](https://huggingface.co/Saravanan2003/llama_model_2/tree/main)  
+- Download the LLaMA 2 model from [HERE!](https://huggingface.co/Saravanan2003/llama-2-7b-chat.Q4_K_S.gguf)  
 
 ### 📁 Folder Structure  
   
@@ -91,6 +91,7 @@ GEN_AI_FINAL_PROJECT/
     └── pyvenv.cfg
 
 ```
+---
 
 ## 🧰 Installation
 
