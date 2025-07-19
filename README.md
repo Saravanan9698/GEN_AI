@@ -29,22 +29,68 @@
 ### 📁 Folder Structure  
   
 ```  
-project_root/
-├── gen_ai.py                           # Streamlit application  
-├── images/
+GEN_AI_FINAL_PROJECT/
+├── Gen_AI.py                          # Main application script
+├── HuggingFaceEmbeddings.ipynb        # Jupyter notebook for embedding exploration
+├── requirements.txt                   # Project dependencies
+├── evaluation_log.json                # Evaluation log file
+│
+├── Model/                             # LLaMA model folder
+│   └── llama-2-7b-chat.Q4_K_M.gguf    # Quantized LLaMA model file
+│
+├── models/
+│   └── sentence_transformers/
+│       └── all-MiniLM-L6-v2/
+│           ├── 1_Pooling/
+│           ├── onnx/
+│           ├── openvino/
+│           ├── .cache/
+│           ├── config_sentence_transformers.json
+│           ├── config.json
+│           ├── data_config.json
+│           ├── model.safetensors
+│           ├── modules.json
+│           ├── pytorch_model.bin
+│           ├── rust_model.ot
+│           ├── sentence_bert_config.json
+│           ├── special_tokens_map.json
+│           ├── tf_model.h5
+│           ├── tokenizer_config.json
+│           ├── tokenizer.json
+│           ├── vocab.txt
+│           ├── README.md
+│           └── train_script.py        # Optional training script
+│
+├── db/
+│   └── faiss/
+│       ├── index.faiss                # FAISS index file
+│       └── index.pkl                  # Serialized metadata or index data
+│
+├── faiss_index/                       # FAISS vector store (auto-generated)
+│   ├── index.faiss
+│   └── index.pkl
+│
+├── evaluation_logs/                  # Auto-generated logs
+│   └── evaluation_results.json
+│
+├── Images/
+│   ├── 767.jpg
+│   ├── ChatGPT_Image.png
 │   └── freepik__adjust__9850.jpeg
-│   └── 767.jpg
-├── faiss_index/                        # Generated vector store  (auto-created)
-├── evaluation_logs/                    # Generated json file  (auto-created)  
-├── documents/
-│   ├── empty.txt
-│   ├── sample_doc.docx
-│   ├── Advanced_Facts_Octopus.pdf  
-│   └── sample_txt.txt
-└── requirements.txt  
-```
+│
+├── Documents/
+│   ├── Advanced_Facts_Octopus.pdf
+│   ├── Advanced_Velociraptor_Text.txt
+│   ├── Dire_Wolf.docx
+│   └── Saravanan Data Science Resume ATS match without emoji.pdf
+│
+└── env/                               # Python virtual environment
+    ├── Include/
+    ├── Lib/
+    ├── Scripts/
+    └── pyvenv.cfg
 
----
+```
 
 ## 🧰 Installation
 
