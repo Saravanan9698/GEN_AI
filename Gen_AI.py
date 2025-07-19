@@ -177,7 +177,7 @@ def generate_optimization_suggestions(stats):
     return tips or ["Current configuration is performing well."]
 
 # --- Title & Sidebar ---
-st.title("AskDocs AI")
+st.title("ChatBot AI")
 st.subheader("From documents to decisions — powered by AI, secured locally.")
 
 with st.sidebar:
